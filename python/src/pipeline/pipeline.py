@@ -39,6 +39,7 @@ import threading
 import time
 import urllib
 import uuid
+import calendar
 
 from google.appengine.api import mail
 from google.appengine.api import app_identity
@@ -2883,7 +2884,7 @@ def _get_timestamp_ms(when):
   """
   if when is None:
     return None
-  ms_since_epoch = float(time.mktime(when.utctimetuple()) * 1000.0)
+  ms_since_epoch = float(calendar.timegm(when.utctimetuple()) * 1000.0)
   ms_since_epoch += when.microsecond / 1000.0
   return int(ms_since_epoch)
 
