@@ -33,31 +33,14 @@ $dir/test:\
 "
   fetch_dependencies
   echo "Using PYTHONPATH=$PYTHONPATH"
-  exit_status=0
-  for t in $(find "$dir/test" -name "*test.py"); do
-    if python $t
-    then
-      echo "PASSED"
-    else
-      echo "FAILED"
-      ((exit_status++))
-    fi
-    sleep 2
-  done
 
-  echo "----------------------------------------------------------------------"
-  if [ $exit_status -ne 0 ];
-  then
-    echo "FAILED $exit_status tests"
-  else
-    echo "PASSED all tests"
-  fi
-  exit $exit_status
+  nosetests test/*_test.py
+  exit $?
 }
 
 build_demo () {
   fetch_dependencies
-  [ ! -d "$demo_dir/demo/pipeline" ] && ln -s "$demo_dir/src/" "$demo_dir/demo/pipeline"
+  [ ! -d "$demo_dir/demo/pipeline" ] && ln -s "$demo_dir/src/pipeline" "$demo_dir/demo/pipeline"
 }
 
 run_demo () {
@@ -80,6 +63,7 @@ fetch_dependencies() {
 
   pip install --exists-action=s -r $dir/src/requirements.txt -t $dir/src/ --upgrade || exit 1
   pip install --exists-action=s -r $dir/src/requirements.txt -t $dir/demo/ --upgrade || exit 1
+  pip install nose --upgrade || exit 1
 }
 
 case "$1" in
