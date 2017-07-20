@@ -1235,7 +1235,7 @@ class UtilitiesTest(TestBase):
         {
             'queue_name': 'my-queue',
             'after_all': [str(future.default.key)],
-            'class_path': 'pipeline_test.GenerateArgs',
+            'class_path': 'test.pipeline_test.GenerateArgs',
             'args': [
                 {'slot_key': str(future.one.key),
                  'type': 'slot'},
@@ -4993,7 +4993,7 @@ class StatusTest(TestBase):
     """Tests the get_pipeline_names function."""
     names = pipeline.get_pipeline_names()
     self.assertTrue(None not in names)  # No base-class Pipeline
-    self.assertIn('pipeline_test.EchoSync', names)
+    self.assertIn('test.pipeline_test.EchoSync', names)
 
     found = False
     for name in names:
@@ -5018,8 +5018,8 @@ class StatusTest(TestBase):
     found_names = [
         (p['pipelineId'], p['classPath']) for p in found['pipelines']]
     expected = [
-        ('lemon', 'pipeline_test.EchoSync'),
-        ('banana', 'pipeline_test.NothingPipeline')
+        ('lemon', 'test.pipeline_test.EchoSync'),
+        ('banana', 'test.pipeline_test.NothingPipeline')
     ]
     self.assertEquals(expected, found_names)
 
@@ -5077,11 +5077,11 @@ class StatusTest(TestBase):
     EchoSync('one').start(idempotence_key='tomato')
 
     found = pipeline.get_root_list(class_path=NothingPipeline.class_path)
-    self.assertEquals(['pipeline_test.NothingPipeline', 'pipeline_test.NothingPipeline'],
+    self.assertEquals(['test.pipeline_test.NothingPipeline', 'test.pipeline_test.NothingPipeline'],
                       [p['classPath'] for p in found['pipelines']])
 
     found = pipeline.get_root_list(class_path=EchoSync.class_path)
-    self.assertEquals(['pipeline_test.EchoSync'],
+    self.assertEquals(['test.pipeline_test.EchoSync'],
                       [p['classPath'] for p in found['pipelines']])
 
   
