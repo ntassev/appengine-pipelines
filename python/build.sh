@@ -34,7 +34,7 @@ $dir/test:\
   fetch_dependencies
   echo "Using PYTHONPATH=$PYTHONPATH"
 
-  nosetests test/*_test.py
+  nosetests -c `pwd`/.noserc test/*_test.py
   exit $?
 }
 

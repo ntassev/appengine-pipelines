@@ -380,7 +380,7 @@ class PipelineTest(TestBase):
 
     pipeline_record = _PipelineRecord.get_by_key_name(stage.pipeline_id)
     self.assertTrue(pipeline_record is not None)
-    self.assertEquals('pipeline_test.NothingPipeline', pipeline_record.class_path)
+    self.assertEquals('test.pipeline_test.NothingPipeline', pipeline_record.class_path)
     self.assertEquals(_PipelineRecord.WAITING, pipeline_record.status)
 
     params = pipeline_record.params
@@ -532,7 +532,7 @@ class PipelineTest(TestBase):
       self.fail('Did not raise')
     except pipeline.PipelineSetupError, e:
       self.assertEquals(
-          'Error starting pipeline_test.OutputlessPipeline(*(), **{})#banana: '
+          'Error starting test.pipeline_test.OutputlessPipeline(*(), **{})#banana: '
           'Doh! Fake error',
           str(e))
 
@@ -837,7 +837,7 @@ class PipelineTest(TestBase):
     self.assertEquals('my-app-id@my-app-id.appspotmail.com', sender)
     self.assertEquals(
         'Pipeline successful: App "my-app-id", '
-        'pipeline_test.OutputlessPipeline#banana',
+        'test.pipeline_test.OutputlessPipeline#banana',
         subject)
     self.assertEquals(
         'View the pipeline results here:\n\n'
@@ -875,7 +875,7 @@ class PipelineTest(TestBase):
     self.assertEquals('my-app-id@my-app-id.appspotmail.com', sender)
     self.assertEquals(
         'Pipeline aborted: App "my-app-id", '
-        'pipeline_test.OutputlessPipeline#banana',
+        'test.pipeline_test.OutputlessPipeline#banana',
         subject)
     self.assertEquals(
         'View the pipeline results here:\n\n'
@@ -944,7 +944,7 @@ class PipelineTest(TestBase):
       stage.set_status(message=object())
     except pipeline.PipelineRuntimeError, e:
       self.assertEquals(
-          'Could not set status for pipeline_test.OutputlessPipeline(*(), **{})'
+          'Could not set status for test.pipeline_test.OutputlessPipeline(*(), **{})'
           '#banana: Property message must be convertible to a Text instance '
           '(Text() argument should be str or unicode, not object)',
           str(e))
@@ -1151,7 +1151,7 @@ class EmailOnHighReplicationTest(TestBase):
     self.assertEquals('my-hrd-app@my-hrd-app.appspotmail.com', sender)
     self.assertEquals(
       'Pipeline successful: App "my-hrd-app", '
-      'pipeline_test.OutputlessPipeline#banana',
+      'test.pipeline_test.OutputlessPipeline#banana',
       subject)
     self.assertEquals(
       'View the pipeline results here:\n\n'
