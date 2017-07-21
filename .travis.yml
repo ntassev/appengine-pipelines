@@ -15,7 +15,7 @@ before_install:
     fi
 
 install:
-  - /bin/bash -c "cd python; ./build.sh deps"
+  - cd ${TRAVIS_BUILD_DIR}/python; ./build.sh deps
 
 script:
-  - /bin/bash -c "cd python; ./build.sh test"
+  - cd ${TRAVIS_BUILD_DIR}/python; ./build.sh test
