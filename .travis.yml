@@ -9,10 +9,11 @@ env:
   - PATH=$PATH:${HOME}/google-cloud-sdk/bin CLOUDSDK_CORE_DISABLE_PROMPTS=1 HTTP_HOST=localhost APPENGINE_LIB=${HOME}/google-cloud-sdk/platform/google_appengine
 
 before_install:
-  - if [ ! -d ${HOME}/google-cloud-sdk ]; then
-      curl https://sdk.cloud.google.com | bash;
-      gcloud components install app-engine-python;
-    fi
+  - ls -la ${HOME}/google-cloud-sdk
+#  - if [ ! -d ${HOME}/google-cloud-sdk ]; then
+  - curl https://sdk.cloud.google.com | bash;
+  - gcloud components install app-engine-python;
+#    fi
   - gcloud components update
 
 install:
