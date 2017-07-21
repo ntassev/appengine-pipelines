@@ -1,7 +1,0 @@
-*.pyc
-.python-version
-demo/GoogleAppEngineCloudStorageClient-1.9.22.1.dist-info/
-demo/cloudstorage/
-src/GoogleAppEngineCloudStorageClient-1.9.22.1.dist-info/
-src/cloudstorage/
-

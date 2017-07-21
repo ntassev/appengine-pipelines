@@ -1,0 +1,2 @@
+recursive-include pipeline *.html *.css *.js *.gif
+global-exclude test*
