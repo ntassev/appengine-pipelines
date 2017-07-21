@@ -15,7 +15,7 @@ before_install:
     fi
 
 install:
-  - cd python; ./build.sh fetch_dependencies
+  - cd python; ./build.sh deps
 
 script:
   - cd python; ./build.sh test
