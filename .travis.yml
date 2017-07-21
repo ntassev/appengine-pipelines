@@ -15,7 +15,7 @@ before_install:
     fi
 
 install:
-  - ./python/build.sh deps
+  - /bin/bash -c "cd python; ./build.sh deps"
 
 script:
-  - ./python/build.sh test
+  - /bin/bash -c "cd python; ./build.sh test"
