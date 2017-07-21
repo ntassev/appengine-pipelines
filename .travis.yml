@@ -11,7 +11,7 @@ env:
 before_install:
   - if [ ! -d ${HOME}/google-cloud-sdk ]; then
       curl https://sdk.cloud.google.com | bash;
-      gcloud components install app-engine-python
+      gcloud components install app-engine-python;
     fi
 
 install:
