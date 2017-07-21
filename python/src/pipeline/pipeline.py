@@ -21,7 +21,7 @@ __all__ = [
     'Error', 'PipelineSetupError', 'PipelineExistsError',
     'PipelineRuntimeError', 'SlotNotFilledError', 'SlotNotDeclaredError',
     'UnexpectedPipelineError', 'PipelineStatusError', 'Slot', 'Pipeline',
-    'PipelineFuture', 'After', 'InOrder', 'Retry', 'Abort', 'get_status_tree',
+    'PipelineFuture', 'After', 'InOrder', 'Retry', 'RetryWithTimeout', 'Abort', 'get_status_tree',
     'get_pipeline_names', 'get_root_list', 'create_handlers_map',
     'set_enforce_auth',
 ]
@@ -127,6 +127,13 @@ class PipelineUserError(Error):
 
 class Retry(PipelineUserError):
   """The currently running pipeline should be retried at a later time."""
+
+
+class RetryWithTimeout(Retry):
+  """The currently running pipeline should be retried after the specified time."""
+  def __init__(self, message, timeout_seconds):
+    super(RetryWithTimeout, self).__init__(message)
+    self.timeout_seconds = timeout_seconds
 
 
 class Abort(PipelineUserError):
@@ -2417,7 +2424,12 @@ class _PipelineContext(object):
       True if the exception should be re-raised up through the calling stack
       by the caller of this method.
     """
-    if isinstance(e, Retry):
+    if isinstance(e, RetryWithTimeout):
+      retry_message = str(e)
+      logging.warning('User forced timeout retry for pipeline ID "%s" of %r with timeout %d: %s',
+                      pipeline_key.name(), pipeline_func, e.timeout_seconds, retry_message)
+      self.transition_retry(pipeline_key, retry_message, timeout_seconds=e.timeout_seconds)
+    elif isinstance(e, Retry):
       retry_message = str(e)
       logging.warning('User forced retry for pipeline ID "%s" of %r: %s',
                       pipeline_key.name(), pipeline_func, retry_message)
@@ -2551,7 +2563,7 @@ class _PipelineContext(object):
 
     db.run_in_transaction(txn)
 
-  def transition_retry(self, pipeline_key, retry_message):
+  def transition_retry(self, pipeline_key, retry_message, timeout_seconds=None):
     """Marks the given pipeline as requiring another retry.
 
     Does nothing if all attempts have been exceeded.
@@ -2559,6 +2571,8 @@ class _PipelineContext(object):
     Args:
       pipeline_key: db.Key of the _PipelineRecord that needs to be retried.
       retry_message: User-supplied message indicating the reason for the retry.
+      timeout_seconds: the time after which the pipeline should be retried,
+        allowing to override the default backoff policy.
     """
     def txn():
       pipeline_record = db.get(pipeline_key)
@@ -2575,9 +2589,12 @@ class _PipelineContext(object):
         raise db.Rollback()
 
       params = pipeline_record.params
-      offset_seconds = (
-          params['backoff_seconds'] *
-          (params['backoff_factor'] ** pipeline_record.current_attempt))
+      if timeout_seconds is None:
+        offset_seconds = (
+            params['backoff_seconds'] *
+            (params['backoff_factor'] ** pipeline_record.current_attempt))
+      else:
+        offset_seconds = timeout_seconds
       pipeline_record.next_retry_time = (
           self._gettime() + datetime.timedelta(seconds=offset_seconds))
       pipeline_record.current_attempt += 1
