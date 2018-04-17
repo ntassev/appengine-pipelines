@@ -131,9 +131,10 @@ class Retry(PipelineUserError):
 
 class RetryWithTimeout(Retry):
   """The currently running pipeline should be retried after the specified time."""
-  def __init__(self, message, timeout_seconds):
+  def __init__(self, message, timeout_seconds, linear_retry_max_attempts=None):
     super(RetryWithTimeout, self).__init__(message)
     self.timeout_seconds = timeout_seconds
+    self.linear_retry_max_attempts = linear_retry_max_attempts
 
 
 class Abort(PipelineUserError):
@@ -2426,9 +2427,11 @@ class _PipelineContext(object):
     """
     if isinstance(e, RetryWithTimeout):
       retry_message = str(e)
-      logging.warning('User forced timeout retry for pipeline ID "%s" of %r with timeout %d: %s',
-                      pipeline_key.name(), pipeline_func, e.timeout_seconds, retry_message)
-      self.transition_retry(pipeline_key, retry_message, timeout_seconds=e.timeout_seconds)
+      logging.warning('User forced timeout retry for pipeline ID "%s" of %r with timeout %d and max attempts %r: %s',
+                      pipeline_key.name(), pipeline_func, e.timeout_seconds, e.linear_retry_max_attempts, retry_message)
+      self.transition_retry(pipeline_key, retry_message,
+                            timeout_seconds=e.timeout_seconds,
+                            linear_retry_max_attempts=e.linear_retry_max_attempts)
     elif isinstance(e, Retry):
       retry_message = str(e)
       logging.warning('User forced retry for pipeline ID "%s" of %r: %s',
@@ -2563,7 +2566,7 @@ class _PipelineContext(object):
 
     db.run_in_transaction(txn)
 
-  def transition_retry(self, pipeline_key, retry_message, timeout_seconds=None):
+  def transition_retry(self, pipeline_key, retry_message, timeout_seconds=None, linear_retry_max_attempts=None):
     """Marks the given pipeline as requiring another retry.
 
     Does nothing if all attempts have been exceeded.
@@ -2573,6 +2576,11 @@ class _PipelineContext(object):
       retry_message: User-supplied message indicating the reason for the retry.
       timeout_seconds: the time after which the pipeline should be retried,
         allowing to override the default backoff policy.
+      linear_retry_max_attempts: overrides the max_attempts for the next and following attempts.
+        Combined with *timeout_seconds* it can be used to implement linear backoff instead of the default exponential.
+        When given *linear_retry_max_attempts* will switch the pipeline to linear backoff with the specified
+        *timeout seconds between attempts*, i.e. it will change the *backoff_factor* to 1 and set the *backoff_seconds*
+        to *timeout_seconds* or to 5 minutes if not  *timeout_seconds* is not given.
     """
     def txn():
       pipeline_record = db.get(pipeline_key)
@@ -2589,17 +2597,29 @@ class _PipelineContext(object):
         raise db.Rollback()
 
       params = pipeline_record.params
-      if timeout_seconds is None:
-        offset_seconds = (
-            params['backoff_seconds'] *
-            (params['backoff_factor'] ** pipeline_record.current_attempt))
-      else:
+
+      offset_seconds = (
+          params['backoff_seconds'] *
+          (params['backoff_factor'] ** pipeline_record.current_attempt))
+
+      if timeout_seconds is not None:
         offset_seconds = timeout_seconds
+
+      if linear_retry_max_attempts is not None:
+        params['backoff_seconds'] = timeout_seconds if timeout_seconds is not None else 5*60
+        params['backoff_factor'] = 1
+        params['max_attempts'] = linear_retry_max_attempts
+
+        offset_seconds = params['backoff_seconds']
+
       pipeline_record.next_retry_time = (
           self._gettime() + datetime.timedelta(seconds=offset_seconds))
       pipeline_record.current_attempt += 1
       pipeline_record.retry_message = retry_message
       pipeline_record.status = _PipelineRecord.WAITING
+
+      if linear_retry_max_attempts is not None:
+        pipeline_record.max_attempts = linear_retry_max_attempts
 
       if pipeline_record.current_attempt >= pipeline_record.max_attempts:
         root_pipeline_key = (
@@ -2626,6 +2646,17 @@ class _PipelineContext(object):
                         attempt=pipeline_record.current_attempt),
             headers={'X-Ae-Pipeline-Key': pipeline_key},
             target=pipeline_record.params['target'])
+        if linear_retry_max_attempts is not None:
+          # we need to update params because we are switching the retry behavior and the params for that are in...
+          # params
+          params_encoded = json.dumps(params, cls=mr_util.JsonEncoder)
+          if len(params_encoded) > _MAX_JSON_SIZE:
+            params_blob = _write_json_blob(params_encoded, pipeline_record.pipeline_id)
+            pipeline_record.params_blob = params_blob
+          else:
+            params_text = params_encoded
+            pipeline_record.params_text = params_text
+
         task.add(queue_name=self.queue_name, transactional=True)
 
       pipeline_record.put()
