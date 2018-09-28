@@ -2083,7 +2083,7 @@ class _PipelineContext(object):
           resolve_outputs=finalize_signal,
           _pipeline_record=pipeline_record)
     except SlotNotFilledError, e:
-      logging.exception(
+      logging.warning(
           'Could not resolve arguments for %s#%s. Most likely this means there '
           'is a bug in the Pipeline runtime or some intermediate data has been '
           'deleted from the Datastore. Giving up.',
