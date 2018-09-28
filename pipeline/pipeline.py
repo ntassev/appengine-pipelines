@@ -80,6 +80,17 @@ _SlotRecord = models._SlotRecord
 _StatusRecord = models._StatusRecord
 
 
+def retry_on_transient(func):
+  for current_try in range(15):
+      try:
+        return func()
+      except taskqueue.TransientError:
+          if current_try == 14:
+              raise
+          logging.debug('retry_on_transient: got transient error - WILL retry')
+          time.sleep(3)
+
+
 # Overall TODOs:
 # - Add a human readable name for start()
 
@@ -962,7 +973,7 @@ The Pipeline API
         params=dict(root_pipeline_key=self._root_pipeline_key),
         url=self.base_path + '/cleanup',
         headers={'X-Ae-Pipeline-Key': self._root_pipeline_key})
-    taskqueue.Queue(self.queue_name).add(task)
+    retry_on_transient(lambda: taskqueue.Queue(self.queue_name).add(task))
 
   def with_params(self, **kwargs):
     """Modify various execution parameters of a Pipeline before it runs.
@@ -1521,7 +1532,7 @@ class _PipelineContext(object):
                 use_barrier_indexes=True),
             headers={'X-Ae-Slot-Key': slot.key,
                      'X-Ae-Filler-Pipeline-Key': filler_pipeline_key})
-        task.add(queue_name=self.queue_name, transactional=True)
+        retry_on_transient(lambda: task.add(queue_name=self.queue_name, transactional=True))
       db.run_in_transaction_options(
           db.create_transaction_options(propagation=db.ALLOWED), txn)
 
@@ -1669,7 +1680,8 @@ class _PipelineContext(object):
 
     if task_list:
       try:
-        taskqueue.Queue(self.queue_name).add(task_list)
+        for t in task_list:
+          retry_on_transient(lambda: taskqueue.Queue(self.queue_name).add(t))
       except (taskqueue.TombstonedTaskError, taskqueue.TaskAlreadyExistsError):
         pass
 
@@ -1709,7 +1721,7 @@ class _PipelineContext(object):
       task = taskqueue.Task(
           url=self.fanout_abort_handler_path,
           params=dict(root_pipeline_key=root_pipeline_key))
-      task.add(queue_name=self.queue_name, transactional=True)
+      retry_on_transient(lambda: task.add(queue_name=self.queue_name, transactional=True))
       return True
 
     return db.run_in_transaction(txn)
@@ -1775,7 +1787,8 @@ class _PipelineContext(object):
 
     if task_list:
       try:
-        taskqueue.Queue(self.queue_name).add(task_list)
+        for t in task_list:
+          retry_on_transient(lambda: taskqueue.Queue(self.queue_name).add(t))
       except (taskqueue.TombstonedTaskError, taskqueue.TaskAlreadyExistsError):
         pass
 
@@ -1854,7 +1867,7 @@ class _PipelineContext(object):
           eta=eta)
       if return_task:
         return task
-      task.add(queue_name=self.queue_name, transactional=True)
+      retry_on_transient(lambda: task.add(queue_name=self.queue_name, transactional=True))
 
     task = txn()
     # Immediately mark the output slots as existing so they can be filled
@@ -2512,7 +2525,7 @@ class _PipelineContext(object):
               url=self.fanout_handler_path,
               params=dict(parent_key=str(pipeline_key),
                           child_indexes=child_indexes))
-          task.add(queue_name=self.queue_name, transactional=True)
+          retry_on_transient(lambda: task.add(queue_name=self.queue_name, transactional=True))
 
       pipeline_record.put()
 
@@ -2636,7 +2649,7 @@ class _PipelineContext(object):
         task = taskqueue.Task(
             url=self.fanout_abort_handler_path,
             params=dict(root_pipeline_key=root_pipeline_key))
-        task.add(queue_name=self.queue_name, transactional=True)
+        retry_on_transient(lambda: task.add(queue_name=self.queue_name, transactional=True))
       else:
         task = taskqueue.Task(
             url=self.pipeline_handler_path,
@@ -2657,7 +2670,7 @@ class _PipelineContext(object):
             params_text = params_encoded
             pipeline_record.params_text = params_text
 
-        task.add(queue_name=self.queue_name, transactional=True)
+        retry_on_transient(lambda: task.add(queue_name=self.queue_name, transactional=True))
 
       pipeline_record.put()
 
@@ -2782,7 +2795,8 @@ class _FanoutHandler(webapp.RequestHandler):
     for i in xrange(0, len(all_tasks), batch_size):
       batch = all_tasks[i:i+batch_size]
       try:
-        taskqueue.Queue(context.queue_name).add(batch)
+        for t in batch:
+          retry_on_transient(lambda: taskqueue.Queue(context.queue_name).add(t))
       except (taskqueue.TombstonedTaskError, taskqueue.TaskAlreadyExistsError):
         pass
 
